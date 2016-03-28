@@ -696,33 +696,33 @@ class RubyInterpreter
     {
 
 
-      // set load paths
-      std::vector<std::string> rubyArgs;
+      //// set load paths
+      //std::vector<std::string> rubyArgs;
 
 
-      rubyArgs.emplace_back("-EUTF-8");
+      //rubyArgs.emplace_back("-EUTF-8");
 
-      for (const auto &p : t_includePaths) {
-        addIncludePath(rubyArgs, p);
-      }
+      //for (const auto &p : t_includePaths) {
+      //  addIncludePath(rubyArgs, p);
+      //}
 
-      // and now give the interpreter something to parse, so that it doesn't sit
-      // waiting on stdin from us
-      rubyArgs.emplace_back("-e");
-      rubyArgs.emplace_back("");
+      //// and now give the interpreter something to parse, so that it doesn't sit
+      //// waiting on stdin from us
+      //rubyArgs.emplace_back("-e");
+      //rubyArgs.emplace_back("");
 
 
-      m_argc = static_cast<int>(rubyArgs.size());
-      m_argv = new char*[m_argc];
+      //m_argc = static_cast<int>(rubyArgs.size());
+      //m_argv = new char*[m_argc];
 
-      for (int i = 0; i < m_argc; ++i){
-        m_argv[i] = new char[rubyArgs[i].size() + 1];
-        strcpy(m_argv[i], rubyArgs[i].c_str());
-      }
+      //for (int i = 0; i < m_argc; ++i){
+      //  m_argv[i] = new char[rubyArgs[i].size() + 1];
+      //  strcpy(m_argv[i], rubyArgs[i].c_str());
+      //}
 
-      // the return value of ruby_options is the parsed node of our "script"
-      // from the -e "" we passed in. This could be used to actually parse / eval something if we wanted
-      ruby_options(m_argc, m_argv);
+      //// the return value of ruby_options is the parsed node of our "script"
+      //// from the -e "" we passed in. This could be used to actually parse / eval something if we wanted
+      //ruby_options(m_argc, m_argv);
 
 
       // register some default types that we want to pass in / out of the ruby system

@@ -46,6 +46,7 @@ set(LIBS
 )
 
 set(INIT_CALLS "")
+set(RB_PROVIDES_CALLS "")
 set(INIT_DECLARATIONS "")
 foreach(LIB ${EXTENSION_LIBS})
   get_filename_component(LIB_NAME ${LIB} NAME_WE)
@@ -53,27 +54,22 @@ foreach(LIB ${EXTENSION_LIBS})
   if( ${_index} GREATER -1 )
     set(INIT_CALLS "${INIT_CALLS}  Init_${LIB_NAME}();\\\n" )
     set(INIT_DECLARATIONS "${INIT_DECLARATIONS}  void Init_${LIB_NAME}();\\\n" )
+    set(RB_PROVIDES_CALLS "${RB_PROVIDES_CALLS}  rb_provide(\"${LIB_NAME}.so\");\\\n" )
   endif()
 endforeach()
 
 configure_file("InitMacros.hxx.in" "InitMacros.hxx")
 
 function(embed_files )
-  #set(OUTFILE "${CMAKE_BINARY_DIR}/embedded_files.cpp")
-  #file(WRITE  ${OUTFILE}  "#include <embedded_files.hpp>\n ")
-  #file(APPEND ${OUTFILE}  "namespace embedded_files {\n ")
-
   math(EXPR ARGCEND "${ARGC} - 1")
   math(EXPR NUMFILES "${ARGC} / 2")
   math(EXPR MAXFILECOUNT "${NUMFILES} - 1")
-
-  #file(APPEND ${OUTFILE} "  static const size_t embedded_file_count = ${NUMFILES};\n" )
 
   foreach (arg RANGE 0 ${ARGCEND} 2)
     # INFILE is the path to the file to embed into the executable
     list(GET ARGV ${arg} INFILE)
     math(EXPR argplus1 "${arg} + 1")
-    math(EXPR filenum "${arg} / 2")
+    math(EXPR FILENUM "${arg} / 2")
     # OUTNAME is the path to the embedded file
     # this is the path used to reference the file inside the executable
     list(GET ARGV ${argplus1} OUTNAME)
@@ -81,64 +77,65 @@ function(embed_files )
     get_filename_component(BASE_PATH ${OUTNAME} DIRECTORY)
     get_filename_component(BASE_FILENAME ${OUTNAME} NAME_WE)
     get_filename_component(EXTENSION ${OUTNAME} EXT)
+    string(REPLACE "." "_" EXTENSION ${EXTENSION})
 
     # EMBED_SOURCE_FILE is the fully qualified path to a cxx file with the embedded data
-    set(EMBED_SOURCE_FILE "${CMAKE_BINARY_DIR}/embedded_files/${BASE_PATH}/${BASE_FILENAME}_${EXTENSION}.cxx")
+    set(EMBED_SOURCE_FILE "${CMAKE_BINARY_DIR}/embedded_files/${BASE_PATH}/${BASE_FILENAME}${EXTENSION}.cxx")
+    file(RELATIVE_PATH EMBED_SOURCE_FILE_REL_PATH ${CMAKE_BINARY_DIR} ${EMBED_SOURCE_FILE})
     list(APPEND EMBED_SOURCE_FILES ${EMBED_SOURCE_FILE})    
 
+    # Fixup the name. We want to make sure it starts with :/
+    string(SUBSTRING ${OUTNAME} 0 1 OUTNAME_PREFIX)
+    string(SUBSTRING ${OUTNAME} 0 2 OUTNAME_PREFIX2)
+    if( OUTNAME_PREFIX2 STREQUAL :/ )
+      # don't do anything, already in embedded form
+    elseif( OUTNAME_PREFIX STREQUAL / )
+      set( OUTNAME ":${OUTNAME}" )
+    else()
+      set( OUTNAME ":/${OUTNAME}" )
+    endif()
+
     add_custom_command(OUTPUT ${EMBED_SOURCE_FILE}
-      COMMAND ${CMAKE_COMMAND} -DEMBED_SOURCE_FILE:String=${EMBED_SOURCE_FILE} -DINFILE:String=${INFILE} -DOUTNAME:String=${OUTNAME} -P "${CMAKE_SOURCE_DIR}/GenerateEmeddedSource.cmake"
-      DEPENDS ${INFILE}
+      COMMAND ${CMAKE_COMMAND} 
+        -DFILENUM:Integer=${FILENUM} 
+        -DEMBED_SOURCE_FILE:String=${EMBED_SOURCE_FILE} 
+        -DINFILE:String=${INFILE} 
+        -DOUTNAME:String=${OUTNAME} 
+        -P "${CMAKE_SOURCE_DIR}/GenerateEmeddedSource.cmake"
+        DEPENDS ${INFILE}
     )
     set(EMBED_SOURCE_FILES ${EMBED_SOURCE_FILES} PARENT_SCOPE)
+    set(EMBEDDED_FILE_INCLUDES "${EMBEDDED_FILE_INCLUDES}#include <${EMBED_SOURCE_FILE_REL_PATH}>\n")
   endforeach()
 
-  ## file names
-  #file(APPEND ${OUTFILE} "  static const char *embedded_file_names[] = {\n")
-  #foreach (arg RANGE 0 ${MAXFILECOUNT})
-  #  file(APPEND ${OUTFILE} "    embedded_file_name_${arg}")
-  #  if (NOT arg EQUAL MAXFILECOUNT)
-  #    file(APPEND ${OUTFILE} ",")
-  #  endif()
-  #  file(APPEND ${OUTFILE} "\n")
-  #endforeach()
-  #file(APPEND ${OUTFILE} "  };\n")
+  # file names
+  foreach (arg RANGE 0 ${MAXFILECOUNT})
+    set(EMBEDDED_FILE_NAMES "${EMBEDDED_FILE_NAMES}    embedded_file_name_${arg}")
+    if (NOT arg EQUAL MAXFILECOUNT)
+      set(EMBEDDED_FILE_NAMES "${EMBEDDED_FILE_NAMES},")
+    endif()
+    set(EMBEDDED_FILE_NAMES "${EMBEDDED_FILE_NAMES}\n")
+  endforeach()
 
-  ## lengths
-  #file(APPEND ${OUTFILE} "  static const size_t embedded_file_lens[] = {\n")
-  #foreach (arg RANGE 0 ${MAXFILECOUNT})
-  #  file(APPEND ${OUTFILE} "    embedded_file_len_${arg}")
-  #  if (NOT arg EQUAL MAXFILECOUNT)
-  #    file(APPEND ${OUTFILE} ",")
-  #  endif()
-  #  file(APPEND ${OUTFILE} "\n")
-  #endforeach()
-  #file(APPEND ${OUTFILE} "  };\n")
+  # lengths
+  foreach (arg RANGE 0 ${MAXFILECOUNT})
+    set(EMBEDDED_FILE_LENS "${EMBEDDED_FILE_LENS}    embedded_file_len_${arg}")
+    if (NOT arg EQUAL MAXFILECOUNT)
+      set(EMBEDDED_FILE_LENS "${EMBEDDED_FILE_LENS},")
+    endif()
+    set(EMBEDDED_FILE_LENS "${EMBEDDED_FILE_LENS}\n")
+  endforeach()
 
-  ## datas
-  #file(APPEND ${OUTFILE} "  static const uint8_t *embedded_files[] = {\n")
-  #foreach (arg RANGE 0 ${MAXFILECOUNT})
-  #  file(APPEND ${OUTFILE} "    embedded_file_${arg}")
-  #  if (NOT arg EQUAL MAXFILECOUNT)
-  #    file(APPEND ${OUTFILE} ",")
-  #  endif()
-  #  file(APPEND ${OUTFILE} "\n")
-  #endforeach()
-  #file(APPEND ${OUTFILE} "  };\n")
+  # datas
+  foreach (arg RANGE 0 ${MAXFILECOUNT})
+    set(EMBEDDED_FILES "${EMBEDDED_FILES}    embedded_file_${arg}")
+    if (NOT arg EQUAL MAXFILECOUNT)
+      set(EMBEDDED_FILES "${EMBEDDED_FILES},")
+    endif()
+    set(EMBEDDED_FILES "${EMBEDDED_FILES}\n")
+  endforeach()
 
-  #file(APPEND ${OUTFILE} "    std::map<std::string, std::pair<size_t, const uint8_t *>> files()\n")
-  #file(APPEND ${OUTFILE} "    {\n")
-  #file(APPEND ${OUTFILE} "      std::map<std::string, std::pair<size_t, const uint8_t *>> fs;\n")
-  #file(APPEND ${OUTFILE} "      for (size_t i = 0; i < embedded_file_count; ++i) {\n")
-  #file(APPEND ${OUTFILE} "        fs.insert(std::make_pair(std::string(embedded_file_names[i]), \n")
-  #file(APPEND ${OUTFILE} "                                 std::make_pair(embedded_file_lens[i],\n")
-  #file(APPEND ${OUTFILE} "                                                embedded_files[i])));\n")
-  #file(APPEND ${OUTFILE} "      }\n")
-  #file(APPEND ${OUTFILE} "      return fs;\n")
-  #file(APPEND ${OUTFILE} "    }\n")
-
-
-  #file(APPEND ${CMAKE_BINARY_DIR}/embedded_files.cpp "} //close namespace")
+  configure_file("embedded_files.cxx.in" "embedded_files.cxx")
 endfunction()
 
 file(GLOB_RECURSE  EXTENSION_RB  FOLLOW_SYMLINKS "${RUBY_POSSIBLE_LIB_DIR}/**/*.rb")
@@ -149,12 +146,9 @@ foreach( _FILE ${EXTENSION_RB} )
 endforeach()
 
 embed_files(
-  "${CMAKE_CURRENT_SOURCE_DIR}/test.rb" "myvfs/test.rb"
-  "${CMAKE_CURRENT_SOURCE_DIR}/test2.rb" "myvfs/test2.rb"
-  "${CMAKE_CURRENT_SOURCE_DIR}/test3.rb" "extracted/test3.rb"
+  "${CMAKE_CURRENT_SOURCE_DIR}/embedded_help.rb" "embedded_help.rb"
   ${EMBED_RB} 
-  )
-
+)
 
 set(BUILD_SHARED_LIBS OFF)
 
@@ -210,7 +204,7 @@ add_executable(EmbeddedScripting
  RubyException.hpp
  RubyInterpreter.hpp
  embedded_files.hpp
- "${CMAKE_CURRENT_BINARY_DIR}/embedded_files.cpp"
+ "${CMAKE_CURRENT_BINARY_DIR}/embedded_files.cxx"
  "${CMAKE_CURRENT_BINARY_DIR}/EmbeddedScriptingRUBY_wrap.cxx"
  ${EMBED_SOURCE_FILES} 
  )
